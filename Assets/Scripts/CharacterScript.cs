@@ -3,6 +3,7 @@ using UnityEngine.InputSystem;
 
 public class CharacterScript : MonoBehaviour
 {
+    private Animator animator;
     private InputAction moveAction;
     private InputAction jumpAction;
     private CharacterController characterController;
@@ -11,9 +12,11 @@ public class CharacterScript : MonoBehaviour
     private float playerSpeed = 4.0f;
     private float jumpHeight = 1.5f;
     private float gravityValue = -9.81f;
+    private MoveStates prevMoveState = MoveStates.Idle;
 
     void Start()
     {
+        animator = GetComponent<Animator>();
         moveAction = InputSystem.actions.FindAction("Move");
         jumpAction = InputSystem.actions.FindAction("Jump");
         characterController = GetComponent<CharacterController>();
@@ -21,6 +24,7 @@ public class CharacterScript : MonoBehaviour
 
     void Update()
     {
+        MoveStates moveState = MoveStates.Idle;
         groundedPlayer = characterController.isGrounded;
         if(groundedPlayer && playerVelocity.y < 0)
         {
@@ -38,6 +42,14 @@ public class CharacterScript : MonoBehaviour
             moveValue.x * Camera.main.transform.right +
             moveValue.y * cameraForward
         );
+        if(moveStep.magnitude > 0)
+        {
+            this.transform.forward = cameraForward;
+            if(Input.GetKey(KeyCode.W) ||  Input.GetKey(KeyCode.S))
+                moveState = MoveStates.Walk;
+            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.D))
+                moveState = MoveStates.Sidewalk;
+        }
         characterController.Move(moveStep);
         
         //Makes the player jump
@@ -48,5 +60,19 @@ public class CharacterScript : MonoBehaviour
 
         playerVelocity.y += gravityValue * Time.deltaTime;
         characterController.Move(playerVelocity * Time.deltaTime);
+
+        if (moveState != prevMoveState)
+        {
+            animator.SetInteger("MoveState", (int)moveState);
+            prevMoveState = moveState;
+        }
     }
+}
+
+
+enum MoveStates
+{
+    Idle = 1,
+    Walk = 2,
+    Sidewalk = 3
 }
