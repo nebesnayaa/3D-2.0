@@ -6,6 +6,7 @@ public class CharacterScript : MonoBehaviour
     private Animator animator;
     private InputAction moveAction;
     private InputAction jumpAction;
+    private InputAction sprintAction;
     private CharacterController characterController;
     private Vector3 playerVelocity;
     private bool groundedPlayer;
@@ -19,12 +20,14 @@ public class CharacterScript : MonoBehaviour
         animator = GetComponent<Animator>();
         moveAction = InputSystem.actions.FindAction("Move");
         jumpAction = InputSystem.actions.FindAction("Jump");
+        sprintAction = InputSystem.actions.FindAction("Sprint");
         characterController = GetComponent<CharacterController>();
     }
 
     void Update()
     {
-        MoveStates moveState = MoveStates.Idle;
+        MoveStates moveState = (MoveStates) animator.GetInteger("MoveState");
+        
         groundedPlayer = characterController.isGrounded;
         if(groundedPlayer && playerVelocity.y < 0)
         {
@@ -32,23 +35,34 @@ public class CharacterScript : MonoBehaviour
         }
 
         Vector2 moveValue = moveAction.ReadValue<Vector2>();
+        float sprintValue = sprintAction.ReadValue<float>();
+
         Vector3 cameraForward = Camera.main.transform.forward;
         cameraForward.y = 0.0f;
         if(cameraForward != Vector3.zero)
         {
             cameraForward.Normalize();
         }
-        Vector3 moveStep = playerSpeed * Time.deltaTime * (
+        Vector3 moveStep = playerSpeed * Time.deltaTime * (1.0f + sprintValue) * (
             moveValue.x * Camera.main.transform.right +
             moveValue.y * cameraForward
         );
-        if(moveStep.magnitude > 0)
+
+        if( moveState != MoveStates.JumpStart && 
+            moveState != MoveStates.Jumping &&
+            moveState != MoveStates.JumpFinish)
         {
-            this.transform.forward = cameraForward;
-            if(Input.GetKey(KeyCode.W) ||  Input.GetKey(KeyCode.S))
-                moveState = MoveStates.Walk;
-            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.D))
-                moveState = MoveStates.Sidewalk;
+            if(moveStep.magnitude > 0)
+            {
+                this.transform.forward = cameraForward;
+                moveState = Mathf.Abs(moveValue.x) > Mathf.Abs(moveValue.y)
+                    ? (sprintValue > 0 ? MoveStates.SideRun : MoveStates.SideWalk)
+                    : (sprintValue > 0 ? MoveStates.Run : MoveStates.Walk);
+            }
+            else
+            {
+                moveState = MoveStates.Idle;
+            }
         }
         characterController.Move(moveStep);
         
@@ -67,12 +81,26 @@ public class CharacterScript : MonoBehaviour
             prevMoveState = moveState;
         }
     }
-}
 
+    private void OnJumpStartAnimationEnds()
+    {
+        animator.SetInteger("MoveState", (int)MoveStates.Jumping);
+    }
+
+    private void OnJumpFinishAnimationEnds()
+    {
+        animator.SetInteger("MoveState", (int)MoveStates.Idle);
+    }
+}
 
 enum MoveStates
 {
-    Idle = 1,
-    Walk = 2,
-    Sidewalk = 3
+    Idle       = 1,
+    Walk       = 2,
+    SideWalk   = 3,
+    Run        = 4,
+    SideRun    = 5,
+    JumpStart  = 6, 
+    Jumping    = 7,
+    JumpFinish = 8,
 }
